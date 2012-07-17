@@ -1,0 +1,11 @@
+## Argent CloudKit Access Control
+## ===============================================
+## Prevent the contents of the Argent folder being
+## accessed over HTTP
+##
+## @version 1.0
+## @since 1.0.1
+## @author Nick Cousins <me@nickcousins.co.uk>
+
+
+deny from all
