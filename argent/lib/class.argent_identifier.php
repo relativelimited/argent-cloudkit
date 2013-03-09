@@ -4,7 +4,7 @@
  * 
  * 
  * @package Argent CloudKit
- * @version 1.1
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -113,7 +113,7 @@ if (!class_exists('argent_identifier')){
          * 
          * @static
          * @since 1.0.1
-         * @version 1.1
+         * @version 1.2.0
          * @param int $time Unix timestamp
          * @return string 
          */

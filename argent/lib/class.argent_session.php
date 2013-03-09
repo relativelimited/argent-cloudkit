@@ -5,7 +5,7 @@
  * 
  * @package Argent CloudKit
  * @subpackage argent_session
- * @version 1.2
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -14,6 +14,17 @@
  require_once ('class.argent_identifier.php');
  require_once ('class.argent_database.php');
  require_once (ABSOLUTE_PATH.'argent/conf/argent_session.conf.php');
+ 
+ /**
+  * This global variable is used as a stand-in for the session
+  * cookie so that sessions created in the current request are 
+  * still accessible without having to close the connection and 
+  * make another request with the cookie in.
+  */
+ $request_sessions = array();
+ 
+ 
+ 
  
  if (!class_exists('argent_session'))
      {
@@ -33,39 +44,47 @@
              * @param string $path Session Cookie Path
              */
             function __construct($sessionName=NULL, $timeout=NULL, $secure=false, $domain=NULL, $path=COOKIE_PATH){
-                    $this->data=array();
-                    $this->cleanup_sessions();
+                
+                global $request_sessions;
+                
+                $this->data=array();
+                $this->cleanup_sessions();
 
-                    if (empty($sessionName)){$sessionName='SID';}
-                    $this->name=$sessionName;
+                if (empty($sessionName)){$sessionName='SID';}
+                $this->name=$sessionName;
+                
+                if (isset($_COOKIE[$this->name]))
+                    $session_id = $_COOKIE[$this->name];
+                else if (isset($request_sessions[$this->name]))
+                    $session_id = $request_sessions[$this->name];
 
-                    if (isset($_COOKIE[$this->name])){
-                        if (!$this->load_session($_COOKIE[$this->name]))
-                            {
-                                // Session is Dead - Create New	
-                                $this->create_session($sessionName, $timeout, $secure, $domain, $path);
-                        }
-                        else
+                if (!empty($session_id)){
+                    if (!$this->load_session($session_id))
                         {
-                                // Session is Live - load it
-                            if ($this->load_session($_COOKIE[$this->name])){
-                                if (!headers_sent())
-                                    setcookie($this->name,$this->id,0,$this->path, $this->domain, $this->secure);
-                            }
-
-                            else
-
-                            {
-                                // Something's wrong - create a new session
-                                $this->create_session($sessionName, $timeout, $secure, $domain, $path);
-                            }
-                        }
+                            // Session is Dead - Create New	
+                            $this->create_session($sessionName, $timeout, $secure, $domain, $path);
                     }
                     else
                     {
-                            // Create New Session	
+                            // Session is Live - load it
+                        if ($this->load_session($session_id)){
+                            if (!headers_sent())
+                                setcookie($this->name,$this->id,0,$this->path, $this->domain, $this->secure);
+                        }
+
+                        else
+
+                        {
+                            // Something's wrong - create a new session
                             $this->create_session($sessionName, $timeout, $secure, $domain, $path);
-                    }		
+                        }
+                    }
+                }
+                else
+                {
+                        // Create New Session	
+                        $this->create_session($sessionName, $timeout, $secure, $domain, $path);
+                }		
             }	
 
             
@@ -82,52 +101,62 @@
              */
             private function create_session($sessionName=NULL, $timeout=NULL, $secure=false, $domain=NULL, $path=COOKIE_PATH)
             {
-                    $db = new argent_database();
+                global $request_sessions;
 
-                    $timenow = time();
-                    $this->id   =  argent_identifier::session($timenow);
-                    if (!empty($domain))
-                        {
-                            if ($domain=='_DOMAIN_'){
-                                preg_match('/^([w]{3}\.)?(.*)$/',$_SERVER['HTTP_HOST'],$m);
-                                $this->domain='.'.$m[2];
-                            }
-                            else $this->domain=$domain;
+                $db = new argent_database();
 
-                            } else{
-                                preg_match('/^([w]{3}\.)?(.*)$/',$_SERVER['HTTP_HOST'],$m);
-                                $this->domain='.'.$m[2];
-                            }
+                $timenow = time();
+                
+                if (is_int($timeout))
+                    $expiry = $timenow + $timeout;
+                else
+                    $expiry = $timenow + 900;
+                
+                $this->id   =  argent_identifier::session($timenow);
+                if (!empty($domain))
+                    {
+                        if ($domain=='_DOMAIN_'){
+                            preg_match('/^([w]{3}\.)?(.*)$/',$_SERVER['HTTP_HOST'],$m);
+                            $this->domain='.'.$m[2];
+                        }
+                        else $this->domain=$domain;
 
-                    if (!empty($path)){$this->path=$path;}
-                    if ($secure==false){$this->secure=false;} else {$this->secure=true;}
-                    if ($timeout<900) {$timeout=900;} 
-                    $this->timeout=$timeout;
-                    
-                    $this->secure = (int)$this->secure;
-                    
+                        } else{
+                            preg_match('/^([w]{3}\.)?(.*)$/',$_SERVER['HTTP_HOST'],$m);
+                            $this->domain='.'.$m[2];
+                        }
 
-                    $query =    "INSERT INTO 
-                                    `ua_sessions`
-                                 VALUES(
-                                    '{$this->id}',
-                                    '{$db->escape_value($this->name)}',
-                                    {$this->timeout},
-                                    {$timenow},
-                                    {$timenow},
-                                    '{$db->escape_value($_SERVER['REMOTE_ADDR'])}',
-                                    {$this->secure},
-                                    '{$db->escape_value($this->domain)}',
-                                    '{$db->escape_value($this->path)}',
-                                    '{$db->escape_value($_SERVER['HTTP_USER_AGENT'])}',
-                                    '')";
+                if (!empty($path)){$this->path=$path;}
+                if ($secure==false){$this->secure=false;} else {$this->secure=true;}
+                if ($timeout == null || $timeout<900) {$timeout=900;} 
+                $this->timeout=$timeout;
 
-                    $db->query($query);
+                $this->secure = (int)$this->secure;
 
-                    unset($db);
 
-                    if (!headers_sent())
-                        setcookie($this->name,$this->id,0,$this->path, $this->domain, $this->secure);
+                $query =    "INSERT INTO 
+                                `ua_sessions`
+                             VALUES(
+                                '{$this->id}',
+                                '{$db->escape_value($this->name)}',
+                                {$this->timeout},
+                                {$timenow},
+                                {$timenow},
+                                '{$db->escape_value($_SERVER['REMOTE_ADDR'])}',
+                                {$this->secure},
+                                '{$db->escape_value($this->domain)}',
+                                '{$db->escape_value($this->path)}',
+                                '{$db->escape_value($_SERVER['HTTP_USER_AGENT'])}',
+                                '')";
+
+                $db->query($query);
+
+                unset($db);
+
+                $request_sessions[$this->name]   =   $this->id;
+
+                if (!headers_sent())
+                    setcookie($this->name,$this->id,0,$this->path, $this->domain, $this->secure);
 
             }
 
@@ -139,7 +168,7 @@
              * 
              * @access private
              * @internal
-             * @version 1.1
+             * @version 1.2.0
              * @since 1.0.1
              * @param string $sessionID
              * @return boolean 
@@ -218,14 +247,27 @@
             private function cleanup_sessions()
             {
                     $db = new argent_database();
-
-                    $expire =strtotime($this->timeout . ' seconds ago');
-
+                    
                     $query  =   "
                                 DELETE FROM
                                     `ua_sessions`
                                 WHERE 
-                                    `last_activity` < {$expire}";
+                                    `last_activity` < (NOW() - `timeout`)";
+
+                    $db->query($query);
+                    
+                    $query  =   "
+                                DELETE FROM
+                                    `ua_session_register`
+                                WHERE 
+                                    `session_id`
+                                NOT IN
+                                    (
+                                        SELECT
+                                            `session_id`
+                                        FROM
+                                            `ua_sessions`
+                                    )";
 
                     $db->query($query);
             }

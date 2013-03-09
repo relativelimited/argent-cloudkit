@@ -5,7 +5,7 @@
  * 
  * @package Argent CloudKit
  * @subpackage argent_notification
- * @version 1.0
+ * @version 1.2.0
  * @since 1.1.0
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -32,7 +32,7 @@ if (!class_exists('argent_notification'))
          * @param string $subject Email subject line
          * @param string $message Email body
          */
-        public static function notify_user($user_id, $subject, $message){
+        public static function notify_user($user_id, $subject, $message, $short_text = null){
             
             $error  =   new argent_error();
             
@@ -61,7 +61,14 @@ if (!class_exists('argent_notification'))
 
             $mail->AltBody    = "To view the message, please use an HTML compatible email viewer!"; // optional, comment out and test
 
-            $mail->MsgHTML($message);
+            $merge_fields = array('user_name'=>$user_data['display_name'],'email'=>$user_data['email'],'body'=>$message,'subject'=>$subject, 'intro'=>$short_text);
+            
+            $message_body = self::merge_template(ABSOLUTE_PATH.'argent/html_email_templates/basic.html', $merge_fields);
+            
+            if (argent_error::check($message_body))
+                return $message_body;
+            
+            $mail->MsgHTML($message_body);
 
             if(!$mail->Send()) {
                 $error->add('1040','Error sending mail',$mail->ErrorInfo,'argent_notification');

@@ -5,7 +5,7 @@
  * 
  * @package Argent CloudKit
  * @subpackage argent_database
- * @version 1.3
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -114,7 +114,7 @@ class argent_mysqldatabase {
          * 
          * @access private
          * @internal
-         * @version 1.1
+         * @version 1.2.0
          * @since 1.0.1
          * @param resource $result 
          */

@@ -4,7 +4,7 @@
  * 
  * 
  * @package Argent CloudKit
- * @version 1.0
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -50,3 +50,10 @@ define('SESSION_NAME','ua');
 
 
 define('SESSION_TIMEOUT',900);
+
+
+/* Permission Definition Constants */
+define ('AG_PERMISSION_CREATE','create');
+define ('AG_PERMISSION_READ','read');
+define ('AG_PERMISSION_UPDATE','update');
+define ('AG_PERMISSION_DELETE','delete');

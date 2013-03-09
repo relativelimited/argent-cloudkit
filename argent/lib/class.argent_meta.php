@@ -5,7 +5,7 @@
  * 
  * @package Argent CloudKit
  * @subpackage argent_meta
- * @version 1.2
+ * @version 1.2.0
  * @since 1.0.2
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -99,6 +99,11 @@ if (!class_exists('argent_meta'))
          */
         public static function revisions_for($object_id,$table){
             
+            $error = new argent_error();
+            
+            if (!argent_uauth::has_permission(AG_PERMISSION_READ, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
+            
             $db = new argent_database();
             
             $sql =  "
@@ -135,6 +140,9 @@ if (!class_exists('argent_meta'))
             $db = new argent_database();
             
             $error = new argent_error();
+            
+            if (!argent_uauth::has_permission(AG_PERMISSION_UPDATE, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
             
             $revisions = self::revisions_for($object_id, $table);
             
@@ -177,6 +185,13 @@ if (!class_exists('argent_meta'))
          * @return type 
          */
         public static function save_record($record_data,$table){
+            
+            $error = new argent_error();
+            
+            $object_id = $record_data['object_id'];
+
+            if (!argent_uauth::has_permission(AG_PERMISSION_UPDATE, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
             
             $db = new argent_database();
             
@@ -240,6 +255,9 @@ if (!class_exists('argent_meta'))
             
             $error = new argent_error();
             
+            if (!argent_uauth::has_permission(AG_PERMISSION_READ, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
+            
             $revisions = self::revisions_for($object_id, $table);
             
             $revision_data = array();
@@ -281,6 +299,9 @@ if (!class_exists('argent_meta'))
             $db =   new argent_database();
             
             $error =    new argent_error();
+            
+            if (!argent_uauth::has_permission(AG_PERMISSION_UPDATE, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
             
             $sql    =   "
                         SELECT
@@ -482,6 +503,9 @@ if (!class_exists('argent_meta'))
         public static function register_object($object_type=NULL,$ua_parent_object=NULL){
             $error  =   new argent_error();
             
+            if (!argent_uauth::has_permission(AG_PERMISSION_CREATE, $ua_parent_object))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
+            
             if (!self::valid_object_type($object_type))
                 $error->add('1036','Unregistered object type',$object_type,'argent_meta');
             
@@ -512,7 +536,45 @@ if (!class_exists('argent_meta'))
                 return $error;
             }
             
+            $permissions = array('create'=>1,'read'=>1,'update'=>1,'delete'=>1);
+            
+            $perms = argent_uauth::set_permissions($permissions, $object_id, argent_uauth::session_user());
+            if (argent_error::check($perms))
+                return $perms;
+            
             return $object_id;            
+        }
+        
+        
+        
+        
+        public static function create_object($object_type = null, $ua_parent_object = null){
+            
+            $error  =   new argent_error();
+            
+            if (!self::valid_object_type($object_type))
+                $error->add('1036','Unregistered object type',$object_type,'argent_meta');
+            
+            if (!self::object_registered($ua_parent_object))
+                $error->add('1038','Object does not exist',$ua_parent_object,'argent_meta');
+            
+            $object = argent_meta::register_object($object_type, $ua_parent_object);
+            
+            if (argent_error::check($object))
+                return $object;
+
+            $record = array('object_id'=>$object);
+
+            $record = argent_meta::add_meta($record);
+            
+            $table = self::type_info($object_type);
+
+            argent_meta::save_record($record, $table['table']);
+            
+            if ($error->has_errors())
+                return $error;
+            
+            return $object;
         }
         
         
@@ -550,6 +612,9 @@ if (!class_exists('argent_meta'))
         
         public static function get_custom_fields($object_id=NULL){
             $error  =   new argent_error();
+            
+            if (!argent_uauth::has_permission(AG_PERMISSION_READ, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
             
             if (!self::object_registered($object_id))
                 $error->add('1038','Object does not exist',$object_id,'argent_meta');
@@ -642,6 +707,411 @@ if (!class_exists('argent_meta'))
             }
             
             return $type_info;
+        }
+        
+        
+        
+        
+        /**
+         * Purges a record from the database
+         * 
+         * @param string $revision_id
+         * @param string $table
+         * @return boolean
+         */
+        public static function purge_revision($object_id,$revision_id,$table){
+          
+            $revision = self::get_revision($object_id, $table, $revision_id);
+            if (argent_error::check($revision))
+                return $revision;
+            
+            $error = new argent_error();
+            
+            if (!argent_meta::object_registered($object_id))
+                $error->add('1038','Object does not exist',$object_id,'argent_uauth');
+            
+            if (!self::object_exists($user_id))
+                $error->add('1013','Invalid user account',$user_id,'argent_uauth');
+            
+            if (!argent_uauth::has_permission(AG_PERMISSION_DELETE, $object_id))
+                $error->add('1024','Access denied',$object_id,'argent_meta');
+            
+            if ($error->has_errors())
+                return $error;
+            
+            $db = new argent_database();
+            
+            $sql=   "
+                    DELETE FROM
+                        `$table`
+                    WHERE
+                        `meta_guid` = '{$db->escape_value($revision_id)}'
+                    ";
+                        
+            return $db->query($sql);
+                
+        }
+        
+        
+        
+        
+        /**
+         * Returns an array of ancestors in reverse order for a given object
+         * 
+         * @param string $object_id
+         * @return array|false 
+         */
+        public static function ancestors($object_id)
+        {
+            $parent = self::has_parent($object_id);
+            if (!$parent)
+				return false;
+				
+            $ancestors = array($parent);
+            while ($parent!=false)
+            {
+                $parent = self::has_parent($parent);
+                $ancestors[]=$parent;
+            }
+            return $ancestors;
+        }
+		
+		
+		
+		
+        /**
+         * Returns the parent of a given object
+         * 
+         * @param string $object_id
+         * @return string|false 
+         */
+        public static function has_parent($object_id)
+        {
+            $db = new argent_database();
+			
+            $sql =  "
+                    SELECT
+                        *
+                    FROM
+                        `ua_object_register`
+                    WHERE
+                        object_id = '".$db->escape_value($object_id)."'
+                    ";
+            
+            $relationships = $db->returntable($sql);
+            
+            if (count($relationships)>0)
+                return $relationships[0]['ua_parent_object'];
+            
+            return false;
+        }
+        
+        
+        
+        
+        /**
+         * 
+         * @param string $object_id
+         */
+        public static function descendents($object_id){
+            
+            $descendents = self::children($object_id);
+            
+            if (count($descendents)>0)
+                foreach($descendents as $child){
+                    $descendents = array_merge($descendents, self::descendents($child));
+                }
+            return $descendents;
+        }
+        
+        
+        
+        
+        public static function children($object_id){
+            $db = new argent_database();
+			
+            $sql =  "
+                    SELECT
+                        *
+                    FROM
+                        `ua_object_register`
+                    WHERE
+                        `ua_parent_object` = '".$db->escape_value($object_id)."'
+                    ";
+            
+            $relationships = $db->returntable($sql);
+            
+            $children = array();
+            
+            if (count($relationships)>0)
+            {
+                foreach($relationships as $child)
+                {
+                    $children[] = $child['object_id'];
+                }
+            }
+            
+            return $children;
+        }
+        
+        
+        
+        
+        /**
+         * Relate two objects with a defined relationship
+         * 
+         * @param string $primary_object_id
+         * @param string $secondary_object_id
+         * @param string $relationship
+         * @return array|\argent_error
+         */
+        public static function relate($primary_object_id, $secondary_object_id, $relationship, $include_reverse=false){
+            
+            $error = new argent_error();
+            
+            $db = new argent_database();
+            
+            if (!argent_meta::object_registered($primary_object_id))
+                $error->add('1038','Object does not exist',$primary_object_id,'argent_uauth');
+            
+            if (!argent_meta::object_registered($secondary_object_id))
+                $error->add('1038','Object does not exist',$secondary_object_id,'argent_uauth');
+            
+            if (!is_string($relationship))
+                $error->add('1050','Invalid data type: expecting STRING',$relationship,'argent_meta');
+            
+            if ($error->has_errors())
+                return $error;
+            
+            $related = self::related($primary_object_id, $secondary_object_id, $relationship, $include_reverse);
+            
+            if (argent_error::check($related))
+                return $related;
+            
+            if ($related)
+                return $related;
+            
+            $meta_data = array();
+            
+            $meta_data = self::add_meta($meta_data);
+            
+            $sql =  "
+                    INSERT INTO
+                        `ua_relationships`
+                        (
+                            `meta_guid`,
+                            `primary_object_id`,
+                            `secondary_object_id`,
+                            `relationship`,
+                            `meta_timestamp`,
+                            `meta_user`,
+                            `meta_ip`
+                        )
+                    VALUES
+                        (
+                            '{$db->escape_value($meta_data['meta_guid'])}',
+                            '{$db->escape_value($primary_object_id)}',
+                            '{$db->escape_value($secondary_object_id)}',
+                            '{$db->escape_value($relationship)}',
+                            NOW(),
+                            '{$db->escape_value($meta_data['meta_user'])}',
+                            '{$db->escape_value($meta_data['meta_ip'])}'
+                        )
+                    ";
+                            
+            $db->query($sql);
+            
+            return self::related($primary_object_id, $secondary_object_id, $relationship, $include_reverse);
+        }
+        
+        
+        
+        
+        public static function related($primary_object_id, $secondary_object_id, $relationship = null, $include_reverse = false){
+            
+            $error = new argent_error();
+            
+            $db = new argent_database();
+            
+            if (!argent_meta::object_registered($primary_object_id))
+                $error->add('1038','Object does not exist',$primary_object_id,'argent_uauth');
+            
+            if (!argent_meta::object_registered($secondary_object_id))
+                $error->add('1038','Object does not exist',$secondary_object_id,'argent_uauth');
+            
+            if (!is_string($relationship) && $relationship != null)
+                $error->add('1050','Invalid data type: expecting STRING',$relationship,'argent_meta');
+            
+            if ($error->has_errors())
+                return $error;
+            
+            $sql =  "
+                    SELECT
+                        *
+                    FROM
+                        `ua_relationships`
+                    WHERE
+                        (`primary_object_id` = '{$db->escape_value($primary_object_id)}'
+                    AND
+                        `secondary_object_id` = '{$db->escape_value($secondary_object_id)}' )
+                    ";
+            if ($include_reverse)
+                $sql.="
+                    OR
+                        (`primary_object_id` = '{$db->escape_value($secondary_object_id)}'
+                    AND
+                        `secondary_object_id` = '{$db->escape_value($primary_object_id)}' )
+                    ";
+                        
+            if ($relationship != null)
+                $sql.="
+                    AND
+                        `relationship` = '{$db->escape_value($relationship)}'
+                    ";
+            
+            $relationship_data = $db->returnrow($sql);
+            
+            if (!empty($relationship_data['primary_object_id']))
+                return $relationship_data;
+            
+            return false;
+        }
+        
+        
+        
+        
+        public static function find_related($primary_object_id=null, $secondary_object_id=null, $relationship = null, $include_reverse = false){
+            
+            $error = new argent_error();
+            
+            $db = new argent_database();
+            
+            if ($primary_object_id != null && !argent_meta::object_registered($primary_object_id))
+                $error->add('1038','Object does not exist',$primary_object_id,'argent_uauth');
+            
+            if ($secondary_object_id != null && !argent_meta::object_registered($secondary_object_id))
+                $error->add('1038','Object does not exist',$secondary_object_id,'argent_uauth');
+            
+            if (!is_string($relationship) && $relationship != null)
+                $error->add('1050','Invalid data type: expecting STRING',$relationship,'argent_meta');
+            
+            if ($error->has_errors())
+                return $error;
+            
+            $sql =  "
+                    SELECT
+                        *
+                    FROM
+                        `ua_relationships`
+                    WHERE
+                        ";
+            if ($primary_object_id!=null || $secondary_object_id !=null)
+                $sql.="
+                        (
+                        ";
+            if ($primary_object_id!=null)
+                $sql.= "`primary_object_id` = '{$db->escape_value($primary_object_id)}'";
+            if ($primary_object_id!=null && $secondary_object_id !=null)
+                $sql.= "
+                    AND
+                    ";
+            if ($secondary_object_id !=null)
+                $sql.="
+                        `secondary_object_id` = '{$db->escape_value($secondary_object_id)}'
+                      ";
+            if ($primary_object_id!=null || $secondary_object_id !=null)
+                $sql.="
+                        )
+                    ";
+            if ($include_reverse)
+            { 
+                $sql.="
+                        OR
+                          ";
+                if ($primary_object_id!=null || $secondary_object_id !=null)
+                    $sql.="
+                            (
+                            ";
+                if ($secondary_object_id!=null)
+                    $sql.= "`primary_object_id` = '{$db->escape_value($secondary_object_id)}'";
+                if ($primary_object_id!=null && $secondary_object_id !=null)
+                    $sql.= "
+                        AND
+                        ";
+                if ($primary_object_id !=null)
+                    $sql.="
+                            `secondary_object_id` = '{$db->escape_value($primary_object_id)}'
+                          ";
+                if ($primary_object_id!=null || $secondary_object_id !=null)
+                    $sql.="
+                            )
+                        ";
+            }      
+            if ($relationship != null && ($primary_object_id != null || $secondary_object_id != null))
+                $sql.="
+                    AND
+                    ";
+            if ($relationship!=null)
+                $sql.="
+                        `relationship` = '{$db->escape_value($relationship)}'
+                    ";
+            
+            $relationship_data = $db->returntable($sql);
+            
+            return $relationship_data;
+
+        }
+        
+        
+        
+        
+        /**
+         * Break a defined relationship relationship between two objects
+         * 
+         * @param string $primary_object_id
+         * @param string $secondary_object_id
+         * @param string $relationship
+         * @return array|\argent_error
+         */
+        public static function unrelate($primary_object_id, $secondary_object_id, $relationship, $include_reverse=false){
+            
+            $error = new argent_error();
+            
+            $db = new argent_database();
+            
+            $related = self::related($primary_object_id, $secondary_object_id, $relationship, $include_reverse);
+            
+            if (argent_error::check($related))
+                return $related;
+            
+            if (!$related)
+                return $related;
+            
+            
+            $sql =  "
+                    DELETE FROM
+                        `ua_relationships`
+                    WHERE
+                        (`primary_object_id` = '{$db->escape_value($primary_object_id)}'
+                    AND
+                        `secondary_object_id` = '{$db->escape_value($secondary_object_id)}' )
+                    ";
+            if ($include_reverse)
+                $sql.="
+                    OR
+                        (`primary_object_id` = '{$db->escape_value($secondary_object_id)}'
+                    AND
+                        `secondary_object_id` = '{$db->escape_value($primary_object_id)}' )
+                    ";
+                        
+            $sql.=  "
+                    AND
+                        `relationship` = '{$db->escape_value($relationship)}'
+                    ";
+                            
+            $db->query($sql);
+            
+            return true;
         }
     }
 }

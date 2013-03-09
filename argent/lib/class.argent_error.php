@@ -4,7 +4,7 @@
  * 
  * 
  * @package Argent CloudKit
- * @version 1.0
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 

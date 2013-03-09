@@ -4,7 +4,7 @@
  * 
  * 
  * @package Argent CloudKit
- * @version 1.0
+ * @version 1.2.0
  * @since 1.0.1
  * @author Nick Cousins <me@nickcousins.co.uk>
  * @link http://www.argentcloudkit.com/documentation 
@@ -22,7 +22,7 @@
  * For example, if this file is in /var/www/myargentapp.com/includes/argent/conf
  * set this constant to /var/www/myargentapp.com/includes/ 
  */
-define('ABSOLUTE_PATH',$_SERVER['DOCUMENT_ROOT'].'/argent/');
+define('ABSOLUTE_PATH',$_SERVER['DOCUMENT_ROOT'].'argentcloudkit/argent-cloudkit/');
 
 
 
