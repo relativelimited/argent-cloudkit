@@ -22,7 +22,7 @@
  * For example, if this file is in /var/www/myargentapp.com/includes/argent/conf
  * set this constant to /var/www/myargentapp.com/includes/ 
  */
-define('ABSOLUTE_PATH',$_SERVER['DOCUMENT_ROOT'].'argentcloudkit/argent-cloudkit/');
+define('ABSOLUTE_PATH',$_SERVER['DOCUMENT_ROOT']);
 
 
 

@@ -3,14 +3,6 @@
 -- http://www.argentcloudkit.com/
 --
 
-CREATE TABLE IF NOT EXISTS `tbljobs` (
-  `meta_guid` varchar(32) NOT NULL,
-  `object_id` varchar(40) NOT NULL,
-  `meta_timestamp` datetime NOT NULL,
-  `meta_user` varchar(40) NOT NULL,
-  `meta_ip` varchar(25) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
 CREATE TABLE IF NOT EXISTS `ua_accounts` (
   `meta_guid` varchar(32) NOT NULL,
   `object_id` varchar(40) NOT NULL,
